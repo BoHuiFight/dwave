@@ -24,8 +24,6 @@ def load_data(pathNum,pathLen):
             id = temp[0]
             if id not in districtids:
                 roadids.append(id)
-    features = features[:, np.where(np.count_nonzero(features, axis=0) >= 3000)[0]]
-    validRoadIds = np.array(roadids)[np.where(np.count_nonzero(features, axis=0) >= 3000)[0]].tolist()
 
     col_mean = np.true_divide(features.sum(0), (features != 0).sum(0))
     col_max=features.max(0)
@@ -33,7 +31,7 @@ def load_data(pathNum,pathLen):
     inds = np.where(features == 0)
     features[inds] = np.take(col_max, inds[1])
     features = features[:, zeroInds]
-
+    roadids=np.array(roadids)
     trajSamples=[]
     with open("data/chengdu/s2osm-traj-cd.txt") as fr:
         for l in fr:
@@ -58,12 +56,12 @@ def load_data(pathNum,pathLen):
             temp = l.rstrip('\n').split("\t")
             instersect=set(temp[1].split(",")).intersection(fixSet)
             instersect=list(instersect)
-            if temp[0] in validRoadIds and len(instersect)>0:
+            if len(instersect)>0:
                 for t in instersect:
                   if t not in s2rDic:
                     s2rDic[t]=ind
                 r2sDic[ind]=instersect
-                X.append(features[:,validRoadIds.index(temp[0])])
+                X.append(features[:,roadids.index(temp[0])])
                 ind+=1
 
     keys=[*s2rDic]
@@ -120,24 +118,11 @@ def random_trajs(trajDic,s2rDic,keys,pathNum):
           for seg in temp1:
             if str(seg) in keys:
               tempTraj.append(int(keys.index(str(seg))))
-          if len(tempTraj)<5:
-            tempTraj.extend([tempTraj[-1]]*(5-len(tempTraj)))
           if tempTraj[-1] not in randomtrajs:
             randomtrajs[tempTraj[-1]]=[tempTraj]
           else:
             randomtrajs[tempTraj[-1]].append(tempTraj)
         ind+=1
-    for s in s2rDic:
-      if s not in  randomtrajs:
-        randomtrajs[s]=[[s]*5]* pathNum
-    # mask=np.zeros((len(s2rDic), len(s2rDic)))
-    # for n in randomtrajs:
-    #   for j in range(len(randomtrajs[n])):
-    #     temp=randomtrajs[n][j]
-    #     for i in range(len(temp)-1):
-    #       #if temp[0][1:-1] in keys and temp[1][1:-1] in keys:
-    #       mask[int(temp[i])][int(temp[i+1])]=1
-    # mask = mask.astype(np.float32)
     return randomtrajs
 
 

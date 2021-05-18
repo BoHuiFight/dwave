@@ -56,10 +56,7 @@ class PCNLayer(nn.Module):
           temp=temp.mean(0)
           h.append(temp)
         h=torch.stack(h)
-        #print(h.shape)
         outputs = h.permute(1,0,2,3,4)
-        #print(outputs.shape)
-        #outputs=torch.stack(outputs)
         return outputs
 
 
@@ -103,7 +100,6 @@ class PCN(nn.Module):
         out1 = self.block1(X,s2rDic,trajDic)
         out3=out1
         out4 = self.fully(out3.reshape((out3.shape[0], out3.shape[1], -1)))
-        #print(out4.shape)
         temp2=[]
         for r in r2sDic:
           temp=[]

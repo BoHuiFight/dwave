@@ -67,11 +67,10 @@ def train_epoch(training_input, training_target, batch_size,randomtrajs):
         #print(os.times().elapsed)
         out = net(X_batch,r2sDic,s2rDic,randomtrajs)
         loss = masked_mae_loss(out, y_batch)
-        print(loss)
+
         loss.backward()
         
         optimizer.step()
-        #print(os.times().elapsed)
         epoch_training_losses.append(loss.detach().cpu().numpy())
     return sum(epoch_training_losses)/len(epoch_training_losses)
 
@@ -146,8 +145,7 @@ if __name__ == '__main__':
                 batch_rmse[i,j]=utils.masked_rmse_np(out_unnormalized, target_unnormalized)
                 batch_mape[i,j]=utils.masked_mape_np(target_unnormalized,out_unnormalized)
                 batch_maes[i,j]=mae
-            # print(batch_loss)
-            # print(batch_maes)
+
             print("val loss: {}".format(batch_loss.mean(axis=0)))
             print("val MAE: {}".format(batch_maes.mean(axis=0)))
             print("val MAPE: {}".format(batch_mape.mean(axis=0)))
@@ -161,7 +159,7 @@ if __name__ == '__main__':
           net.eval()
           mini_test_input = test_input[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
           mini_test_target = test_target[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
-          mask1=torch.from_numpy(mask).to(device=args.device)
+
           out = net(mini_test_input,r2sDic,s2rDic,randomtrajs)
           for j in range(out.shape[2]):
             test_loss = loss_criterion(out[:,:,j], mini_test_target[:,:,j]).to(device="cpu")
