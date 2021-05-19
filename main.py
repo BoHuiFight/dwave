@@ -13,10 +13,10 @@ import utils
 use_gpu = False
 
 
-parser = argparse.ArgumentParser(description='STGCN')
+parser = argparse.ArgumentParser(description='t-wave')
 parser.add_argument('--enable-cuda', action='store_true',default=True,
                     help='Enable CUDA')
-parser.add_argument('--model', type=str, default='PCN',
+parser.add_argument('--model', type=str, default='t-wave',
                     help='select model')
 parser.add_argument('--num_timesteps_input', type=int, default=6,
                     help='input slices')
@@ -102,7 +102,7 @@ if __name__ == '__main__':
                                                num_timesteps_output=num_timesteps_output)
 
 
-    if args.model=='PCN':
+    if args.model=='t-wave':
         net = PCN(len(s2rDic),
                     training_input.shape[3],
                     num_timesteps_input,
