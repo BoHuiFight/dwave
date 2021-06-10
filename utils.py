@@ -102,27 +102,46 @@ def load_data(pathNum,pathLen):
 
     return X,r2sDic,s2rDic,trajDic,keys
 
+def jcSimilarity(interval1, interval2):
+    if interval1.begin>interval2.end or interval2.begin>interval1.end:
+      return 0
+    else:
+      return (min(interval1.end,interval2.end)-max(interval1.begin,interval2.begin))/(max(interval1.end,interval2.end)-min(interval1.begin,interval2.begin))
 
-
-def random_trajs(trajDic,s2rDic,keys,pathNum):
+def random_trajs(treeDic,r2sDic,s2rDic,keys,pathNum,tIndex):
     ind=0
+    trajsDic={}
 
     randomtrajs={}
     for key in keys:
-        #filter = np.asarray([key])
-        trajSamples=trajDic[key]
-        subTraj=trajSamples[np.random.choice(trajSamples.shape[0], pathNum)]
-        subTraj=subTraj.tolist()
-        for temp1 in subTraj:
+        tempTree=treeDic[key]
+        start=random.randint(1, 44) 
+        trajSamples=sorted(tempTree[tIndex:tIndex+6])
+
+        jcValues=[]
+        for traj in trajSamples:
+          jcValues.append(jcSimilarity(traj,Interval(start, start+6, (start, start+6))))
+
+        sortIndex=(-np.array(jcValues)).argsort()[:pathNum]
+
+        for ind in sortIndex:
+          temp1=trajSamples[ind]
           tempTraj=[]
-          for seg in temp1:
+          for seg in temp1.data:
             if str(seg) in keys:
               tempTraj.append(int(keys.index(str(seg))))
+          if len(tempTraj)<5:
+            tempTraj.extend([tempTraj[-1]]*(5-len(tempTraj)))
           if tempTraj[-1] not in randomtrajs:
             randomtrajs[tempTraj[-1]]=[tempTraj]
           else:
-            randomtrajs[tempTraj[-1]].append(tempTraj)
+            if len(randomtrajs[tempTraj[-1]]) <5:
+              randomtrajs[tempTraj[-1]].append(tempTraj)
         ind+=1
+    for s in s2rDic:
+      if s not in  randomtrajs:
+        randomtrajs[s]=[[s]*5]* pathNum
+
     return randomtrajs
 
 
