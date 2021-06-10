@@ -10,13 +10,25 @@ from dwave import PCN
 from utils import generate_dataset,load_data,masked_mae_loss
 import utils
 
+import os
+import argparse
+import pickle as pk
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
+
+from twave import PCN
+from utils import generate_dataset,load_data,masked_mae_loss
+import utils
+
 use_gpu = False
 
 
-parser = argparse.ArgumentParser(description='t-wave')
+parser = argparse.ArgumentParser(description='Twave')
 parser.add_argument('--enable-cuda', action='store_true',default=True,
                     help='Enable CUDA')
-parser.add_argument('--model', type=str, default='t-wave',
+parser.add_argument('--model', type=str, default='T-wave',
                     help='select model')
 parser.add_argument('--num_timesteps_input', type=int, default=6,
                     help='input slices')
@@ -24,13 +36,13 @@ parser.add_argument('--num_timesteps_output', type=int, default=6,
                     help='output slides')
 parser.add_argument('--epochs', type=int, default=50,
                     help='configure epochs')
-parser.add_argument('--batch_size', type=int, default=32,
+parser.add_argument('--batch_size', type=int, default=1,
                     help='select model')
-parser.add_argument('--pathNum', type=int, default=5,
+parser.add_argument('--pathNum', type=int, default=7,
                     help='select model')
-parser.add_argument('--pathLen', type=int, default=5,
+parser.add_argument('--pathLen', type=int, default=7,
                     help='select model')
-parser.add_argument('--lr', type=int, default=1e-1,
+parser.add_argument('--lr', type=int, default=1e-2,
                     help='select model')
 
 args = parser.parse_args()
@@ -49,7 +61,7 @@ else:
     args.device = torch.device('cpu')
 
 
-def train_epoch(training_input, training_target, batch_size,randomtrajs):
+def train_epoch(batch_size):
 
     permutation = torch.randperm(training_input.shape[0])
 
@@ -57,17 +69,17 @@ def train_epoch(training_input, training_target, batch_size,randomtrajs):
     for i in range(0, training_input.shape[0], batch_size):
         net.train()
         optimizer.zero_grad()
-
+        randomtrajs=utils.random_trajs(trajDic,r2sDic,s2rDic,keys,pathNum,i%144)
 
         indices = permutation[i:i + batch_size]
-        X_batch, y_batch = training_input[indices], training_target[indices]
-
+        X_batch,X_batch_daily,X_batch_weekly,X_batch_coarse,  y_batch = training_input[indices], training_daily_input[indices],training_weekly_input[indices],training_coarse_input[indices],training_target[indices]
         X_batch = X_batch.to(device=args.device)
+        X_batch_daily = X_batch_daily.to(device=args.device)
+        X_batch_weekly = X_batch_weekly.to(device=args.device)
+        X_batch_coarse = X_batch_coarse.to(device=args.device)
         y_batch = y_batch.to(device=args.device)
-        #print(os.times().elapsed)
-        out = net(X_batch,r2sDic,s2rDic,randomtrajs)
+        out = net(X_batch,X_batch_daily,X_batch_weekly,X_batch_coarse,r2sDic,s2rDic,randomtrajs)
         loss = masked_mae_loss(out, y_batch)
-
         loss.backward()
         
         optimizer.step()
@@ -88,21 +100,22 @@ if __name__ == '__main__':
     X = X / stds[0]
     
     train_original_data = X[:, :, :split_line1]
-    val_original_data = X[:, :, split_line1:split_line2]
-    test_original_data = X[:, :, split_line2:]
+    val_original_data = X[:, :, split_line1-1008:split_line2]
+    test_original_data = X[:, :, split_line2-1008:]
 
-    training_input, training_target = generate_dataset(train_original_data,
+    training_input, training_daily_input,training_weekly_input,training_coarse_input,training_target = generate_dataset(train_original_data,
                                                        num_timesteps_input=num_timesteps_input,
                                                        num_timesteps_output=num_timesteps_output)
-    val_input, val_target = generate_dataset(val_original_data,
+    val_input,val_daily_input, val_weekly_input, val_coarse_input, val_target = generate_dataset(val_original_data,
                                              num_timesteps_input=num_timesteps_input,
                                              num_timesteps_output=num_timesteps_output)
-    test_input, test_target = generate_dataset(test_original_data,
+    test_input,test_daily_input,test_weekly_input, test_coarse_input,test_target = generate_dataset(test_original_data,
                                                num_timesteps_input=num_timesteps_input,
                                                num_timesteps_output=num_timesteps_output)
 
-
-    if args.model=='t-wave':
+    print(training_input.shape)
+    print(training_target.shape)
+    if args.model=='T-wave':
         net = PCN(len(s2rDic),
                     training_input.shape[3],
                     num_timesteps_input,
@@ -115,9 +128,7 @@ if __name__ == '__main__':
     validation_losses = []
     validation_maes = []
     for epoch in range(epochs):
-
-        randomtrajs=utils.random_trajs(trajDic,s2rDic,keys,pathNum)
-        loss = train_epoch(training_input, training_target,batch_size,randomtrajs)
+        loss = train_epoch(batch_size)
         training_losses.append(loss)
         print("epoch:"+str(epoch))
         print("Training loss: {}".format(training_losses[-1]))
@@ -131,11 +142,17 @@ if __name__ == '__main__':
             batch_maes=np.zeros(((split_line3-split_line2)//batch_size+1,6))
             batch_mape=np.zeros(((split_line3-split_line2)//batch_size+1,6))
             batch_rmse=np.zeros(((split_line3-split_line2)//batch_size+1,6))
-            for i in range((split_line3-split_line2)//batch_size+1):
+
+            for i in range((split_line3-split_line2)//batch_size-1):
               net.eval()
+              randomtrajs=utils.random_trajs(trajDic,r2sDic,s2rDic,keys,pathNum,(i+93)%144)
               mini_test_input = test_input[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
+              mini_test_input_daily = test_daily_input[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
+              mini_test_input_weekly = test_weekly_input[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
+              mini_test_input_coarse = test_coarse_input[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
               mini_test_target = test_target[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
-              out = net(mini_test_input,r2sDic,s2rDic,randomtrajs)
+
+              out = net(mini_test_input,mini_test_input_daily,mini_test_input_weekly,mini_test_input_coarse,r2sDic,s2rDic,randomtrajs)
               for j in range(out.shape[2]):
                 test_loss = loss_criterion(out[:,:,j], mini_test_target[:,:,j]).to(device="cpu")
                 val_losses.append(np.asscalar(test_loss.detach().numpy()))
@@ -154,13 +171,16 @@ if __name__ == '__main__':
     test_losses = []
     test_maes = []
     with torch.no_grad():
-        randomtrajs=utils.random_trajs(trajDic,s2rDic,keys,pathNum)
-        for i in range((split_line3-split_line2)//batch_size+1):
+        for i in range((split_line2-split_line1)//batch_size+1):
           net.eval()
-          mini_test_input = test_input[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
-          mini_test_target = test_target[i*batch_size:min((i+1)*batch_size,split_line3)].to(device=args.device)
-
-          out = net(mini_test_input,r2sDic,s2rDic,randomtrajs)
+          mini_test_input = test_input[i*batch_size:min((i+1)*batch_size,split_line2)].to(device=args.device)
+          mini_test_input_daily = test_daily_input[i * batch_size:min((i + 1) * batch_size, split_line2)].to(
+              device=args.device)
+          mini_test_input_weekly = test_weekly_input[i * batch_size:min((i + 1) * batch_size, split_line2)].to(
+              device=args.device)
+          mini_test_target = test_target[i*batch_size:min((i+1)*batch_size,split_line2)].to(device=args.device)
+          randomtrajs = utils.random_trajs(trajDic, r2sDic, s2rDic, keys, pathNum, (i + 89) % 144)
+          out = net(mini_test_input,mini_test_input_daily,mini_test_input_weekly,mini_test_input_coarse,r2sDic,s2rDic,randomtrajs)
           for j in range(out.shape[2]):
             test_loss = loss_criterion(out[:,:,j], mini_test_target[:,:,j]).to(device="cpu")
             print(test_loss)
@@ -169,4 +189,5 @@ if __name__ == '__main__':
             mae = np.mean(np.absolute(out_unnormalized - target_unnormalized))
             test_maes.append(mae)
         print("test MAE: {}".format(batch_maes.mean(axis=0)))
+
 
