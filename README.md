@@ -1,3 +1,7 @@
+An implementation of "Trajectory WaveNet: A Trajectory-Based Model for Traffic Forecasting"
+
+https://ieeexplore.ieee.org/document/9679147
+
 # dwave
 run with "python train.py"
 
